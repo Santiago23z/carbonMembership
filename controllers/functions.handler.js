@@ -15,7 +15,7 @@ const WooCommerce = new WooCommerceAPI({
   queryStringAuth: true
 });
 
-const channel = { id: '-1002007887417', name: 'Sharpods Club 💎' };
+const channel = { id: '-1002151912581', name: 'Sharpods Club 💎' };
 
 let emailSubscriptions = null; 
 let emailSubscriptionsLastFetched = 0; 
