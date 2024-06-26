@@ -107,7 +107,7 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     const link = await createInviteLink(channel.id);
 
     const buttonsLinks = {
-      inline_keyboard: [[{ text: channel.name, url: link || 'https://example.com/invalid-link' }]]
+      inline_keyboard: [[{ text: channel.name, url: link }]]
     };
 
     const options = {
