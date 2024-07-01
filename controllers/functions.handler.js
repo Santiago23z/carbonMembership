@@ -17,47 +17,27 @@ const WooCommerce = new WooCommerceAPI({
 
 const channel = { id: '-1002151912581', name: 'Club Sharpods 💎' };
 
-let emailSubscriptions = {}; // Cambiado a un objeto para almacenamiento por usuario
-let emailSubscriptionsLastFetched = {}; // Cambiado a un objeto para almacenamiento por usuario
-let userSubscriptionStatus = {};
-let userFetchingStatus = {};
-let userLastActivity = {};
+let userState = {}; // Almacenar estado de cada usuario
 
-const MAX_RETRIES = 3; // Número máximo de reintentos para solicitudes fallidas
-
-const fetchWithRetry = async (url, retries = MAX_RETRIES) => {
+const getCarbonMembershipEmails = async (chatId) => {
   try {
-    return await WooCommerce.getAsync(url);
-  } catch (error) {
-    if (retries > 0) {
-      console.warn(`Error fetching ${url}. Retries left: ${retries}. Retrying...`);
-      return fetchWithRetry(url, retries - 1);
-    } else {
-      console.error(`Failed to fetch ${url} after ${MAX_RETRIES} retries.`);
-      throw error;
-    }
-  }
-};
-
-const getCarbonMembershipEmails = async (chatId, forceUpdate = false) => {
-  try {
-    console.log('Fetching carbon membership emails...');
+    console.log('Fetching Carbon membership emails for chat', chatId);
     const now = Date.now();
     const cacheDuration = 24 * 60 * 60 * 1000;
 
-    if (!forceUpdate && emailSubscriptions[chatId] && (now - emailSubscriptionsLastFetched[chatId]) < cacheDuration) {
+    if (userState[chatId] && userState[chatId].emailSubscriptions && (now - userState[chatId].emailSubscriptionsLastFetched) < cacheDuration) {
       console.log('Using cached email subscriptions for chat', chatId);
-      return emailSubscriptions[chatId];
+      return userState[chatId].emailSubscriptions;
     }
 
     let page = 1;
-    let carbonMembers = [];
+    let CarbonMembers = [];
     let totalPages = 1;
 
-    const response = await fetchWithRetry(`memberships/members?plan=carbon&page=${page}`);
+    const response = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
     const responseBody = response.toJSON().body;
     const responseData = JSON.parse(responseBody);
-    carbonMembers = responseData;
+    CarbonMembers = responseData;
 
     if (response.headers['x-wp-totalpages']) {
       totalPages = parseInt(response.headers['x-wp-totalpages']);
@@ -65,20 +45,22 @@ const getCarbonMembershipEmails = async (chatId, forceUpdate = false) => {
 
     while (page < totalPages) {
       page++;
-      const pageResponse = await fetchWithRetry(`memberships/members?plan=carbon&page=${page}`);
+      const pageResponse = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
       const pageBody = pageResponse.toJSON().body;
       const pageData = JSON.parse(pageBody);
-      carbonMembers = carbonMembers.concat(pageData);
+      CarbonMembers = CarbonMembers.concat(pageData);
     }
 
-    const carbonEmails = await Promise.all(carbonMembers.map(async (member) => {
+    const CarbonEmails = await Promise.all(CarbonMembers.map(async (member) => {
       try {
-        const customerResponse = await fetchWithRetry(`customers/${member.customer_id}`);
+        const customerResponse = await WooCommerce.getAsync(`customers/${member.customer_id}`);
         const customerResponseBody = customerResponse.toJSON().body;
 
         if (customerResponse.headers['content-type'].includes('application/json')) {
           const customerData = JSON.parse(customerResponseBody);
-          return customerData.email.toLowerCase();
+          if (member.status === 'active') {
+            return customerData.email.toLowerCase();
+          }
         } else {
           console.error(`Invalid response for customer ${member.customer_id}:`, customerResponseBody);
           return null;
@@ -89,17 +71,21 @@ const getCarbonMembershipEmails = async (chatId, forceUpdate = false) => {
       }
     }));
 
-    const validEmails = carbonEmails.filter(email => email !== null);
+    const validEmails = CarbonEmails.filter(email => email !== null);
 
-    emailSubscriptions[chatId] = validEmails;
-    emailSubscriptionsLastFetched[chatId] = now;
+    if (!userState[chatId]) {
+      userState[chatId] = {};
+    }
 
-    console.log('Total de correos electrónicos con membresía "carbon" para chat', chatId, ':', validEmails.length);
-    console.log('Correos con membresía "carbon":', JSON.stringify(validEmails, null, 2));
+    userState[chatId].emailSubscriptions = validEmails;
+    userState[chatId].emailSubscriptionsLastFetched = now;
+
+    console.log('Total de correos electrónicos con membresía "Carbon" para chat', chatId, ':', validEmails.length);
+    console.log('Correos con membresía "Carbon":', JSON.stringify(validEmails, null, 2));
 
     return validEmails;
   } catch (error) {
-    console.error('Error al obtener los correos de membresía carbon:', error);
+    console.error('Error al obtener los correos de membresía Carbon:', error);
     return [];
   }
 };
@@ -112,17 +98,11 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
       return;
     }
 
-    let carbonEmails = await getCarbonMembershipEmails(chatId);
-
-    if (!carbonEmails.includes(email.toLowerCase())) {
-      console.log(`Email ${email} not found in cached subscriptions, updating cache...`);
-      carbonEmails = await getCarbonMembershipEmails(chatId, true); // Force update cache
-    }
-
-    const hasCarbonMembership = carbonEmails.includes(email.toLowerCase());
+    const CarbonEmails = await getCarbonMembershipEmails(chatId);
+    const hasCarbonMembership = CarbonEmails.includes(email.toLowerCase());
 
     if (!hasCarbonMembership) {
-      await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "carbon".`);
+      await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "Carbon".`);
       return;
     }
 
@@ -183,14 +163,11 @@ const WelcomeUser = () => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
 
-    if (!userSubscriptionStatus[chatId]) {
-      userSubscriptionStatus[chatId] = false;
-    }
-    if (!userFetchingStatus[chatId]) {
-      userFetchingStatus[chatId] = false;
-    }
-    if (!userLastActivity[chatId]) {
-      userLastActivity[chatId] = 0;
+    if (!userState[chatId]) {
+      userState[chatId] = {
+        fetchingStatus: false,
+        lastActivity: 0
+      };
     }
 
     if (msg.chat.type !== 'private') {
@@ -206,22 +183,18 @@ const WelcomeUser = () => {
     const text = msg.text.trim().toLowerCase();
 
     const now = Date.now();
-    const lastActivity = userLastActivity[chatId];
+    const lastActivity = userState[chatId].lastActivity;
     const inactivityTime = now - lastActivity;
     const maxInactivityTime = 2 * 60 * 1000; // 2 minutos en milisegundos
 
-    if (inactivityTime > maxInactivityTime) {
-      userSubscriptionStatus[chatId] = false;
-    }
+    userState[chatId].lastActivity = now;
 
-    userLastActivity[chatId] = now;
-
-    if (userFetchingStatus[chatId]) {
+    if (userState[chatId].fetchingStatus) {
       await bot.sendMessage(chatId, 'Por favor espera a que se obtengan las suscripciones activas.');
       return;
     }
 
-    if (emailSubscriptions[chatId]) {
+    if (userState[chatId].emailSubscriptions && (inactivityTime < maxInactivityTime)) {
       try {
         await verifyAndSaveEmail(chatId, text, bot);
       } catch (error) {
@@ -230,23 +203,22 @@ const WelcomeUser = () => {
       return;
     }
 
-    if (!userSubscriptionStatus[chatId]) {
-      userFetchingStatus[chatId] = true;
-      await bot.sendMessage(chatId, 'Obteniendo correos con membresía "carbon", por favor espera. Podría tardar al menos un minuto.');
+    if (!userState[chatId].fetchingStatus) {
+      userState[chatId].fetchingStatus = true;
+      await bot.sendMessage(chatId, 'Obteniendo correos con membresía "Carbon", por favor espera. Podría tardar al menos un minuto.');
 
       try {
-        const carbonEmails = await getCarbonMembershipEmails(chatId);
-        userFetchingStatus[chatId] = false;
+        const CarbonEmails = await getCarbonMembershipEmails(chatId);
+        userState[chatId].fetchingStatus = false;
 
-        emailSubscriptions[chatId] = carbonEmails;
-        userSubscriptionStatus[chatId] = true;
+        userState[chatId].emailSubscriptions = CarbonEmails;
         await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
       } catch (err) {
-        userFetchingStatus[chatId] = false;
-        await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "carbon". Vuelve a intentar escribiendome.');
+        userState[chatId].fetchingStatus = false;
+        await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "Carbon". Vuelve a intentar escribiéndome.');
       }
     } else {
-      await bot.sendMessage(chatId, 'Ya se han obtenido los correos con membresía "carbon". Escribe el correo con el que compraste en Sharpods.');
+      await bot.sendMessage(chatId, 'Ya se han obtenido los correos con membresía "Carbon". Escribe el correo con el que compraste en Sharpods.');
     }
   });
 };
