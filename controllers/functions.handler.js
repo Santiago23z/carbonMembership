@@ -182,6 +182,13 @@ const WelcomeUser = () => {
 
     const text = msg.text.trim().toLowerCase();
 
+    // Verificar si el mensaje es un formato válido de correo electrónico
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(text)) {
+      await bot.sendMessage(chatId, 'Solo puedo recibir correos electrónicos. Por favor, envía un correo electrónico válido.');
+      return;
+    }
+
     const now = Date.now();
     const lastActivity = userState[chatId].lastActivity;
     const inactivityTime = now - lastActivity;
