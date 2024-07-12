@@ -166,7 +166,8 @@ const WelcomeUser = () => {
     if (!userState[chatId]) {
       userState[chatId] = {
         fetchingStatus: false,
-        lastActivity: 0
+        lastActivity: 0,
+        awaitingEmail: false
       };
     }
 
@@ -182,13 +183,6 @@ const WelcomeUser = () => {
 
     const text = msg.text.trim().toLowerCase();
 
-    // Verificar si el mensaje es un formato válido de correo electrónico
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(text)) {
-      await bot.sendMessage(chatId, 'Solo puedo recibir correos electrónicos. Por favor, envía un correo electrónico válido.');
-      return;
-    }
-
     const now = Date.now();
     const lastActivity = userState[chatId].lastActivity;
     const inactivityTime = now - lastActivity;
@@ -202,8 +196,22 @@ const WelcomeUser = () => {
     }
 
     if (userState[chatId].emailSubscriptions && (inactivityTime < maxInactivityTime)) {
+      if (!userState[chatId].awaitingEmail) {
+        userState[chatId].awaitingEmail = true;
+        await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
+        return;
+      }
+
+      // Verificar si el mensaje es un formato válido de correo electrónico
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(text)) {
+        await bot.sendMessage(chatId, 'Solo puedo recibir correos electrónicos. Por favor, envía un correo electrónico válido.');
+        return;
+      }
+
       try {
         await verifyAndSaveEmail(chatId, text, bot);
+        userState[chatId].awaitingEmail = false;
       } catch (error) {
         console.error(`Error verifying email for ${chatId}:`, error);
       }
@@ -219,9 +227,11 @@ const WelcomeUser = () => {
         userState[chatId].fetchingStatus = false;
 
         userState[chatId].emailSubscriptions = CarbonEmails;
+        userState[chatId].awaitingEmail = true;
         await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
       } catch (err) {
         userState[chatId].fetchingStatus = false;
+        userState[chatId].awaitingEmail = false;
         await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "Carbon". Vuelve a intentar escribiéndome.');
       }
     } else {
