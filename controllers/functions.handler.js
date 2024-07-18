@@ -58,7 +58,7 @@ const getCarbonMembershipEmails = async (chatId) => {
 
         if (customerResponse.headers['content-type'].includes('application/json')) {
           const customerData = JSON.parse(customerResponseBody);
-          if (member.status === 'active') {
+          if (member.status === 'active' || member.status === "free trial") {
             return customerData.email.toLowerCase();
           }
         } else {
