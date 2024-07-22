@@ -58,9 +58,10 @@ const getCarbonMembershipEmails = async (chatId) => {
 
         if (customerResponse.headers['content-type'].includes('application/json')) {
           const customerData = JSON.parse(customerResponseBody);
-          if (member.status === 'active' || member.status === "free trial") {
-            return customerData.email.toLowerCase();
-          }
+          return {
+            email: customerData.email.toLowerCase(),
+            status: member.status
+          };
         } else {
           console.error(`Invalid response for customer ${member.customer_id}:`, customerResponseBody);
           return null;
@@ -71,7 +72,7 @@ const getCarbonMembershipEmails = async (chatId) => {
       }
     }));
 
-    const validEmails = CarbonEmails.filter(email => email !== null);
+    const validEmails = CarbonEmails.filter(entry => entry !== null);
 
     if (!userState[chatId]) {
       userState[chatId] = {};
@@ -99,9 +100,9 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     }
 
     const CarbonEmails = await getCarbonMembershipEmails(chatId);
-    const hasCarbonMembership = CarbonEmails.includes(email.toLowerCase());
+    const emailEntry = CarbonEmails.find(entry => entry.email === email.toLowerCase());
 
-    if (!hasCarbonMembership) {
+    if (!emailEntry) {
       await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "Carbon".`);
       return;
     }
@@ -117,6 +118,8 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     };
     const message = `¡Ey parcerooo! Te doy una bienvenida a nuestro club premium: ¡Sharpods Club! Espero que juntos podamos alcanzar grandes victorias. ¡Mucha, mucha suerte, papi!`;
     await bot.sendMessage(chatId, message, options);
+
+    await bot.sendMessage(chatId, `El estado de tu membresía es: ${emailEntry.status}`);
 
     await saveUsedEmail(email);
   } catch (error) {
