@@ -3,13 +3,13 @@ const WooCommerceAPI = require('woocommerce-api');
 const mongoose = require('mongoose');
 const UsedEmail = require('../models/UsedEmail');
 
-const token = "YOUR_BOT_TOKEN";
+const token = "7355686822:AAEXP1y5OWmQHSuaJyGlnKcNEtVumzI8e14";
 const bot = new TelegramBot(token, { polling: true });
 
 const WooCommerce = new WooCommerceAPI({
   url: 'https://www.sharpods.com/',
-  consumerKey: "YOUR_CONSUMER_KEY",
-  consumerSecret: "YOUR_CONSUMER_SECRET",
+  consumerKey: "ck_f02ace259e6b96e2c395cdb46e4c709700279213",
+  consumerSecret: "cs_f22ccf75d96e375ecec1fea0ef6b133ad8f95840",
   wpAPI: true,
   version: 'wc/v3',
   queryStringAuth: true
