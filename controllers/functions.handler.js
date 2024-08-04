@@ -58,10 +58,12 @@ const getCarbonMembershipEmails = async (chatId) => {
 
         if (customerResponse.headers['content-type'].includes('application/json')) {
           const customerData = JSON.parse(customerResponseBody);
-          return {
-            email: customerData.email.toLowerCase(),
-            status: member.status
-          };
+          if (member.status === 'active') {
+            return {
+              email: customerData.email.toLowerCase(),
+              status: member.status
+            };
+          }
         } else {
           console.error(`Invalid response for customer ${member.customer_id}:`, customerResponseBody);
           return null;
