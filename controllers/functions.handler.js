@@ -103,6 +103,8 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     console.log(`Fetched Carbon emails: ${JSON.stringify(CarbonEmails, null, 2)}`);
     const emailEntry = CarbonEmails.find(entry => entry.email === email.toLowerCase());
 
+    console.log(`Email entry found: ${JSON.stringify(emailEntry, null, 2)}`);
+
     if (!emailEntry) {
       await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "Carbon".`);
       return;
