@@ -34,22 +34,26 @@ const getCarbonMembershipEmails = async (chatId) => {
     let CarbonMembers = [];
     let totalPages = 1;
 
-    const response = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
-    const responseBody = response.toJSON().body;
-    const responseData = JSON.parse(responseBody);
-    CarbonMembers = responseData;
+    do {
+      const response = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
+      const responseBody = response.toJSON().body;
+      const responseData = JSON.parse(responseBody);
 
-    if (response.headers['x-wp-totalpages']) {
-      totalPages = parseInt(response.headers['x-wp-totalpages']);
-    }
+      // Verificar si el contenido de la respuesta es válido
+      if (Array.isArray(responseData) && responseData.length > 0) {
+        CarbonMembers = CarbonMembers.concat(responseData);
+      } else {
+        console.error(`Unexpected response data format: ${responseBody}`);
+        break;
+      }
 
-    while (page < totalPages) {
+      // Obtener el número total de páginas
+      if (response.headers['x-wp-totalpages']) {
+        totalPages = parseInt(response.headers['x-wp-totalpages']);
+      }
+
       page++;
-      const pageResponse = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
-      const pageBody = pageResponse.toJSON().body;
-      const pageData = JSON.parse(pageBody);
-      CarbonMembers = CarbonMembers.concat(pageData);
-    }
+    } while (page <= totalPages);
 
     const CarbonEmails = await Promise.all(CarbonMembers.map(async (member) => {
       try {
@@ -90,6 +94,7 @@ const getCarbonMembershipEmails = async (chatId) => {
     return [];
   }
 };
+
 
 const verifyAndSaveEmail = async (chatId, email, bot) => {
   try {
