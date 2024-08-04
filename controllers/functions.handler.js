@@ -89,7 +89,7 @@ const getCarbonMembershipEmails = async (chatId) => {
     return validEmails;
   } catch (error) {
     console.error('Error al obtener los correos de membresía Carbon:', error);
-    return [];
+    throw error;  // Asegúrate de lanzar el error para que se maneje adecuadamente en el nivel superior
   }
 };
 
@@ -127,7 +127,7 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     await saveUsedEmail(email);
   } catch (error) {
     console.error(`Error verifying email for ${chatId}:`, error);
-    await bot.sendMessage(chatId, 'Ocurrió un error al verificar el correo. Inténtalo de nuevo más tarde.');
+    await bot.sendMessage(chatId, `Ocurrió un error al verificar el correo: ${error.message}. Inténtalo de nuevo más tarde.`);
   }
 };
 
@@ -161,7 +161,7 @@ const createInviteLink = async (channelId) => {
     return inviteLink.invite_link;
   } catch (error) {
     console.error('Error al crear el enlace de invitación:', error);
-    return null;
+    throw error;
   }
 };
 
@@ -238,7 +238,7 @@ const WelcomeUser = () => {
       } catch (err) {
         userState[chatId].fetchingStatus = false;
         userState[chatId].awaitingEmail = false;
-        await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "Carbon". Vuelve a intentar escribiéndome.');
+        await bot.sendMessage(chatId, `Ocurrió un error al obtener los correos con membresía "Carbon": ${err.message}. Vuelve a intentar escribiéndome.`);
       }
     } else {
       await bot.sendMessage(chatId, 'Ya se han obtenido los correos con membresía "Carbon". Escribe el correo con el que compraste en Sharpods.');
