@@ -3,13 +3,13 @@ const WooCommerceAPI = require('woocommerce-api');
 const mongoose = require('mongoose');
 const UsedEmail = require('../models/UsedEmail');
 
-const token = "YOUR_TELEGRAM_BOT_TOKEN";
+const token = "7355686822:AAEXP1y5OWmQHSuaJyGlnKcNEtVumzI8e14";
 const bot = new TelegramBot(token, { polling: true });
 
 const WooCommerce = new WooCommerceAPI({
   url: 'https://www.sharpods.com/',
-  consumerKey: "YOUR_CONSUMER_KEY",
-  consumerSecret: "YOUR_CONSUMER_SECRET",
+  consumerKey: "ck_f02ace259e6b96e2c395cdb46e4c709700279213",
+  consumerSecret: "cs_f22ccf75d96e375ecec1fea0ef6b133ad8f95840",
   wpAPI: true,
   version: 'wc/v3',
   queryStringAuth: true
@@ -39,6 +39,7 @@ const getCarbonMembershipEmails = async (chatId) => {
       const responseBody = response.toJSON().body;
       const responseData = JSON.parse(responseBody);
 
+      // Verificar si el contenido de la respuesta es válido
       if (Array.isArray(responseData) && responseData.length > 0) {
         CarbonMembers = CarbonMembers.concat(responseData);
       } else {
@@ -46,6 +47,7 @@ const getCarbonMembershipEmails = async (chatId) => {
         break;
       }
 
+      // Obtener el número total de páginas
       if (response.headers['x-wp-totalpages']) {
         totalPages = parseInt(response.headers['x-wp-totalpages']);
       }
@@ -93,19 +95,12 @@ const getCarbonMembershipEmails = async (chatId) => {
   }
 };
 
+
 const verifyAndSaveEmail = async (chatId, email, bot) => {
   try {
     console.log(`Verifying email ${email} for chat ${chatId}`);
     if (await isEmailUsed(email)) {
       await bot.sendMessage(chatId, `El correo ${email} ya ha sido utilizado.`);
-      const options = {
-        reply_markup: JSON.stringify({
-          inline_keyboard: [
-            [{ text: 'Revocar Acceso', callback_data: `revoke_${email}` }]
-          ]
-        })
-      };
-      await bot.sendMessage(chatId, '¿Deseas revocar el acceso?', options);
       return;
     }
 
@@ -116,12 +111,11 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     console.log(`Email entry found: ${JSON.stringify(emailEntry, null, 2)}`);
 
     if (!emailEntry) {
-      await bot.sendMessage(chatId, 'No tienes una suscripción actualmente activa con la membresía "Carbon".');
-      userState[chatId].awaitingEmail = false; // Reset awaiting email state
+      await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "Carbon".`);
       return;
     }
 
-    const link = await createInviteLink(chatId, email);
+    const link = await createInviteLink(channel.id);
 
     const buttonsLinks = {
       inline_keyboard: [[{ text: channel.name, url: link || 'https://example.com/invalid-link' }]]
@@ -130,18 +124,15 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     const options = {
       reply_markup: JSON.stringify(buttonsLinks),
     };
-    const message = '¡Ey parcerooo! Te doy una bienvenida a nuestro club premium: ¡Sharpods Club! Espero que juntos podamos alcanzar grandes victorias. ¡Mucha, mucha suerte, papi!';
+    const message = `¡Ey parcerooo! Te doy una bienvenida a nuestro club premium: ¡Sharpods Club! Espero que juntos podamos alcanzar grandes victorias. ¡Mucha, mucha suerte, papi!`;
     await bot.sendMessage(chatId, message, options);
 
     await bot.sendMessage(chatId, `El estado de tu membresía es: ${emailEntry.status}`);
 
     await saveUsedEmail(email);
-    userState[chatId].currentEmail = email; // Guarda el email en el estado del usuario para asociarlo con el userId cuando se una al canal
-    userState[chatId].awaitingEmail = false; // Reset awaiting email state
   } catch (error) {
     console.error(`Error verifying email for ${chatId}:`, error);
     await bot.sendMessage(chatId, 'Ocurrió un error al verificar el correo. Inténtalo de nuevo más tarde.');
-    userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
   }
 };
 
@@ -166,89 +157,16 @@ const isEmailUsed = async (email) => {
   }
 };
 
-const createInviteLink = async (chatId, email) => {
+const createInviteLink = async (channelId) => {
   try {
-    console.log(`Creating invite link for channel: ${channel.id}`);
-    const inviteLink = await bot.createChatInviteLink(channel.id, {
+    console.log(`Creating invite link for channel: ${channelId}`);
+    const inviteLink = await bot.createChatInviteLink(channelId, {
       member_limit: 1, // Límite de un solo uso
     });
-
-    // Guarda el estado del enlace generado
-    userState[chatId] = {
-      ...userState[chatId],
-      inviteLink: inviteLink.invite_link,
-      inviteTimestamp: Date.now(),
-      currentEmail: email
-    };
-
     return inviteLink.invite_link;
   } catch (error) {
     console.error('Error al crear el enlace de invitación:', error);
     return null;
-  }
-};
-
-const handleChatMember = (bot) => {
-  bot.on('chat_member', async (msg) => {
-    const chatId = msg.chat.id;
-    const newUser = msg.new_chat_member;
-
-    if (newUser && newUser.status === 'member') {
-      const userId = newUser.user.id;
-      const email = userState[chatId]?.currentEmail;
-
-      if (email) {
-        console.log(`Nuevo miembro con userId: ${userId} y email: ${email}`);
-        await saveUserId(email, userId);
-        delete userState[chatId].currentEmail; // Limpia el estado del usuario
-      }
-    }
-  });
-};
-
-const saveUserId = async (email, userId) => {
-  try {
-    console.log(`Guardando userId ${userId} para el email ${email}`);
-    await UsedEmail.updateOne({ email }, { userId: userId });
-  } catch (error) {
-    console.error(`Error al guardar userId para el email ${email}:`, error);
-  }
-};
-
-const revokeAccess = async (chatId, email) => {
-  try {
-    console.log(`Revoking access for email: ${email}`);
-    const usedEmail = await UsedEmail.findOne({ email });
-    if (usedEmail) {
-      const userId = usedEmail.userId;
-      if (userId) {
-        // Expulsar al usuario del canal de Telegram
-        await bot.banChatMember(channel.id, userId);
-        console.log(`Usuario ${userId} expulsado del canal.`);
-        // Desbanear el usuario para permitir que se una nuevamente si es necesario
-        await bot.unbanChatMember(channel.id, userId);
-      } else {
-        console.log(`No se encontró userId para el email ${email}`);
-        await bot.sendMessage(chatId, `No se encontró el usuario asociado con el correo ${email}.`);
-        return;
-      }
-
-      // Eliminar el correo de la base de datos
-      const result = await UsedEmail.deleteOne({ email });
-      if (result.deletedCount > 0) {
-        console.log(`Email ${email} eliminado de la base de datos.`);
-        await bot.sendMessage(chatId, `Acceso revocado para ${email}.`);
-      } else {
-        console.log(`Email ${email} no encontrado en la base de datos.`);
-        await bot.sendMessage(chatId, `No se encontró el correo ${email} en la base de datos.`);
-      }
-    } else {
-      console.log(`Email ${email} no encontrado en la base de datos.`);
-      await bot.sendMessage(chatId, `No se encontró el correo ${email} en la base de datos.`);
-    }
-  } catch (error) {
-    console.error(`Error revoking access for email ${email}:`, error);
-    await bot.sendMessage(chatId, `Ocurrió un error al revocar el acceso para ${email}.`);
   }
 };
 
@@ -288,7 +206,14 @@ const WelcomeUser = () => {
       return;
     }
 
-    if (userState[chatId].awaitingEmail) {
+    if (userState[chatId].emailSubscriptions && (inactivityTime < maxInactivityTime)) {
+      if (!userState[chatId].awaitingEmail) {
+        userState[chatId].awaitingEmail = true;
+        await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
+        return;
+      }
+
+      // Verificar si el mensaje es un formato válido de correo electrónico
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(text)) {
         await bot.sendMessage(chatId, 'Solo puedo recibir correos electrónicos. Por favor, envía un correo electrónico válido.');
@@ -300,12 +225,11 @@ const WelcomeUser = () => {
         userState[chatId].awaitingEmail = false;
       } catch (error) {
         console.error(`Error verifying email for ${chatId}:`, error);
-        userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
       }
       return;
     }
 
-    if (!userState[chatId].emailSubscriptions) {
+    if (!userState[chatId].fetchingStatus) {
       userState[chatId].fetchingStatus = true;
       await bot.sendMessage(chatId, 'Obteniendo correos con membresía "Carbon", por favor espera. Podría tardar al menos un minuto.');
 
@@ -322,23 +246,10 @@ const WelcomeUser = () => {
         await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "Carbon". Vuelve a intentar escribiéndome.');
       }
     } else {
-      userState[chatId].awaitingEmail = true;
-      await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
+      await bot.sendMessage(chatId, 'Ya se han obtenido los correos con membresía "Carbon". Escribe el correo con el que compraste en Sharpods.');
     }
   });
 };
-
-const handleCallbackQuery = async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
-
-  if (data.startsWith('revoke_')) {
-    const email = data.replace('revoke_', '');
-    await revokeAccess(chatId, email);
-  }
-};
-
-bot.on('callback_query', handleCallbackQuery);
 
 const UnbanChatMember = (userId) => {
   bot.unbanChatMember(channel.id, userId)
@@ -355,12 +266,6 @@ const KickChatMember = (userId) => {
     })
     .catch(err => console.log(`Error to kick user ${err}`));
 };
-
-if (!global.botInitialized) {
-  global.botInitialized = true;
-  WelcomeUser();
-  handleChatMember(bot);
-}
 
 module.exports = {
   WelcomeUser,
