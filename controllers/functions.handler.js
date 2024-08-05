@@ -117,6 +117,7 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
 
     if (!emailEntry) {
       await bot.sendMessage(chatId, `No tienes una suscripción actualmente activa con la membresía "Carbon".`);
+      userState[chatId].awaitingEmail = false; // Reset awaiting email state
       return;
     }
 
@@ -136,9 +137,11 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
 
     await saveUsedEmail(email);
     userState[chatId].currentEmail = email; // Guarda el email en el estado del usuario para asociarlo con el userId cuando se una al canal
+    userState[chatId].awaitingEmail = false; // Reset awaiting email state
   } catch (error) {
     console.error(`Error verifying email for ${chatId}:`, error);
     await bot.sendMessage(chatId, 'Ocurrió un error al verificar el correo. Inténtalo de nuevo más tarde.');
+    userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
   }
 };
 
