@@ -3,13 +3,13 @@ const WooCommerceAPI = require('woocommerce-api');
 const mongoose = require('mongoose');
 const UsedEmail = require('../models/UsedEmail');
 
-const token = "7355686822:AAEXP1y5OWmQHSuaJyGlnKcNEtVumzI8e14";
+const token = "YOUR_TELEGRAM_BOT_TOKEN";
 const bot = new TelegramBot(token, { polling: true });
 
 const WooCommerce = new WooCommerceAPI({
   url: 'https://www.sharpods.com/',
-  consumerKey: "ck_f02ace259e6b96e2c395cdb46e4c709700279213",
-  consumerSecret: "cs_f22ccf75d96e375ecec1fea0ef6b133ad8f95840",
+  consumerKey: "YOUR_CONSUMER_KEY",
+  consumerSecret: "YOUR_CONSUMER_SECRET",
   wpAPI: true,
   version: 'wc/v3',
   queryStringAuth: true
@@ -21,12 +21,12 @@ let userState = {}; // Almacenar estado de cada usuario
 
 const getCarbonMembershipEmails = async (chatId) => {
   try {
-    console.log(Fetching Carbon membership emails for chat ${chatId});
+    console.log(`Fetching Carbon membership emails for chat ${chatId}`);
     const now = Date.now();
     const cacheDuration = 24 * 60 * 60 * 1000;
 
     if (userState[chatId] && userState[chatId].emailSubscriptions && (now - userState[chatId].emailSubscriptionsLastFetched) < cacheDuration) {
-      console.log(Using cached email subscriptions for chat ${chatId});
+      console.log(`Using cached email subscriptions for chat ${chatId}`);
       return userState[chatId].emailSubscriptions;
     }
 
@@ -35,14 +35,14 @@ const getCarbonMembershipEmails = async (chatId) => {
     let totalPages = 1;
 
     do {
-      const response = await WooCommerce.getAsync(memberships/members?plan=carbon&page=${page});
+      const response = await WooCommerce.getAsync(`memberships/members?plan=carbon&page=${page}`);
       const responseBody = response.toJSON().body;
       const responseData = JSON.parse(responseBody);
 
       if (Array.isArray(responseData) && responseData.length > 0) {
         CarbonMembers = CarbonMembers.concat(responseData);
       } else {
-        console.error(Unexpected response data format: ${responseBody});
+        console.error(`Unexpected response data format: ${responseBody}`);
         break;
       }
 
@@ -55,7 +55,7 @@ const getCarbonMembershipEmails = async (chatId) => {
 
     const CarbonEmails = await Promise.all(CarbonMembers.map(async (member) => {
       try {
-        const customerResponse = await WooCommerce.getAsync(customers/${member.customer_id});
+        const customerResponse = await WooCommerce.getAsync(`customers/${member.customer_id}`);
         const customerResponseBody = customerResponse.toJSON().body;
 
         if (customerResponse.headers['content-type'].includes('application/json')) {
@@ -65,11 +65,11 @@ const getCarbonMembershipEmails = async (chatId) => {
             status: member.status
           };
         } else {
-          console.error(Invalid response for customer ${member.customer_id}: ${customerResponseBody});
+          console.error(`Invalid response for customer ${member.customer_id}: ${customerResponseBody}`);
           return null;
         }
       } catch (error) {
-        console.error(Error al obtener detalles del cliente para el miembro ${member.id}:, error);
+        console.error(`Error al obtener detalles del cliente para el miembro ${member.id}:`, error);
         return null;
       }
     }));
@@ -83,7 +83,7 @@ const getCarbonMembershipEmails = async (chatId) => {
     userState[chatId].emailSubscriptions = validEmails;
     userState[chatId].emailSubscriptionsLastFetched = now;
 
-    console.log(Total de correos electrónicos con membresía "Carbon" para chat ${chatId}: ${validEmails.length});
+    console.log(`Total de correos electrónicos con membresía "Carbon" para chat ${chatId}: ${validEmails.length}`);
     console.log('Correos con membresía "Carbon":', JSON.stringify(validEmails, null, 2));
 
     return validEmails;
@@ -95,13 +95,13 @@ const getCarbonMembershipEmails = async (chatId) => {
 
 const verifyAndSaveEmail = async (chatId, email, bot) => {
   try {
-    console.log(Verifying email ${email} for chat ${chatId});
+    console.log(`Verifying email ${email} for chat ${chatId}`);
     if (await isEmailUsed(email)) {
-      await bot.sendMessage(chatId, El correo ${email} ya ha sido utilizado.);
+      await bot.sendMessage(chatId, `El correo ${email} ya ha sido utilizado.`);
       const options = {
         reply_markup: JSON.stringify({
           inline_keyboard: [
-            [{ text: 'Revocar Acceso', callback_data: revoke_${email} }]
+            [{ text: 'Revocar Acceso', callback_data: `revoke_${email}` }]
           ]
         })
       };
@@ -110,13 +110,13 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     }
 
     const CarbonEmails = await getCarbonMembershipEmails(chatId);
-    console.log(Fetched Carbon emails: ${JSON.stringify(CarbonEmails, null, 2)});
+    console.log(`Fetched Carbon emails: ${JSON.stringify(CarbonEmails, null, 2)}`);
     const emailEntry = CarbonEmails.find(entry => entry.email === email.toLowerCase());
 
-    console.log(Email entry found: ${JSON.stringify(emailEntry, null, 2)});
+    console.log(`Email entry found: ${JSON.stringify(emailEntry, null, 2)}`);
 
     if (!emailEntry) {
-      await bot.sendMessage(chatId, No tienes una suscripción actualmente activa con la membresía "Carbon".);
+      await bot.sendMessage(chatId, 'No tienes una suscripción actualmente activa con la membresía "Carbon".');
       userState[chatId].awaitingEmail = false; // Reset awaiting email state
       return;
     }
@@ -130,16 +130,16 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
     const options = {
       reply_markup: JSON.stringify(buttonsLinks),
     };
-    const message = ¡Ey parcerooo! Te doy una bienvenida a nuestro club premium: ¡Sharpods Club! Espero que juntos podamos alcanzar grandes victorias. ¡Mucha, mucha suerte, papi!;
+    const message = '¡Ey parcerooo! Te doy una bienvenida a nuestro club premium: ¡Sharpods Club! Espero que juntos podamos alcanzar grandes victorias. ¡Mucha, mucha suerte, papi!';
     await bot.sendMessage(chatId, message, options);
 
-    await bot.sendMessage(chatId, El estado de tu membresía es: ${emailEntry.status});
+    await bot.sendMessage(chatId, `El estado de tu membresía es: ${emailEntry.status}`);
 
     await saveUsedEmail(email);
     userState[chatId].currentEmail = email; // Guarda el email en el estado del usuario para asociarlo con el userId cuando se una al canal
     userState[chatId].awaitingEmail = false; // Reset awaiting email state
   } catch (error) {
-    console.error(Error verifying email for ${chatId}:, error);
+    console.error(`Error verifying email for ${chatId}:`, error);
     await bot.sendMessage(chatId, 'Ocurrió un error al verificar el correo. Inténtalo de nuevo más tarde.');
     userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
   }
@@ -147,29 +147,28 @@ const verifyAndSaveEmail = async (chatId, email, bot) => {
 
 const saveUsedEmail = async (email) => {
   try {
-    console.log(Saving used email: ${email});
+    console.log(`Saving used email: ${email}`);
     const usedEmail = new UsedEmail({ email });
     await usedEmail.save();
   } catch (error) {
-    console.error(Error saving used email: ${error});
+    console.error(`Error saving used email: ${error}`);
   }
 };
 
 const isEmailUsed = async (email) => {
   try {
-    console.log(Checking if email is used: ${email});
+    console.log(`Checking if email is used: ${email}`);
     const emailDoc = await UsedEmail.findOne({ email });
     return !!emailDoc;
   } catch (error) {
-    console.error(Error finding used email: ${error});
+    console.error(`Error finding used email: ${error}`);
     return false;
   }
 };
 
-// Función para crear un enlace de invitación y almacenar el estado
 const createInviteLink = async (chatId, email) => {
   try {
-    console.log(Creating invite link for channel: ${channel.id});
+    console.log(`Creating invite link for channel: ${channel.id}`);
     const inviteLink = await bot.createChatInviteLink(channel.id, {
       member_limit: 1, // Límite de un solo uso
     });
@@ -189,7 +188,6 @@ const createInviteLink = async (chatId, email) => {
   }
 };
 
-// Función para manejar el evento chat_member
 const handleChatMember = (bot) => {
   bot.on('chat_member', async (msg) => {
     const chatId = msg.chat.id;
@@ -200,7 +198,7 @@ const handleChatMember = (bot) => {
       const email = userState[chatId]?.currentEmail;
 
       if (email) {
-        console.log(Nuevo miembro con userId: ${userId} y email: ${email});
+        console.log(`Nuevo miembro con userId: ${userId} y email: ${email}`);
         await saveUserId(email, userId);
         delete userState[chatId].currentEmail; // Limpia el estado del usuario
       }
@@ -210,51 +208,50 @@ const handleChatMember = (bot) => {
 
 const saveUserId = async (email, userId) => {
   try {
-    console.log(Guardando userId ${userId} para el email ${email});
+    console.log(`Guardando userId ${userId} para el email ${email}`);
     await UsedEmail.updateOne({ email }, { userId: userId });
   } catch (error) {
-    console.error(Error al guardar userId para el email ${email}:, error);
+    console.error(`Error al guardar userId para el email ${email}:`, error);
   }
 };
 
 const revokeAccess = async (chatId, email) => {
   try {
-    console.log(Revoking access for email: ${email});
+    console.log(`Revoking access for email: ${email}`);
     const usedEmail = await UsedEmail.findOne({ email });
     if (usedEmail) {
       const userId = usedEmail.userId;
       if (userId) {
         // Expulsar al usuario del canal de Telegram
         await bot.banChatMember(channel.id, userId);
-        console.log(Usuario ${userId} expulsado del canal.);
+        console.log(`Usuario ${userId} expulsado del canal.`);
         // Desbanear el usuario para permitir que se una nuevamente si es necesario
         await bot.unbanChatMember(channel.id, userId);
       } else {
-        console.log(No se encontró userId para el email ${email});
-        await bot.sendMessage(chatId, No se encontró el usuario asociado con el correo ${email}.);
+        console.log(`No se encontró userId para el email ${email}`);
+        await bot.sendMessage(chatId, `No se encontró el usuario asociado con el correo ${email}.`);
         return;
       }
 
       // Eliminar el correo de la base de datos
       const result = await UsedEmail.deleteOne({ email });
       if (result.deletedCount > 0) {
-        console.log(Email ${email} eliminado de la base de datos.);
-        await bot.sendMessage(chatId, Acceso revocado para ${email}.);
+        console.log(`Email ${email} eliminado de la base de datos.`);
+        await bot.sendMessage(chatId, `Acceso revocado para ${email}.`);
       } else {
-        console.log(Email ${email} no encontrado en la base de datos.);
-        await bot.sendMessage(chatId, No se encontró el correo ${email} en la base de datos.);
+        console.log(`Email ${email} no encontrado en la base de datos.`);
+        await bot.sendMessage(chatId, `No se encontró el correo ${email} en la base de datos.`);
       }
     } else {
-      console.log(Email ${email} no encontrado en la base de datos.);
-      await bot.sendMessage(chatId, No se encontró el correo ${email} en la base de datos.);
+      console.log(`Email ${email} no encontrado en la base de datos.`);
+      await bot.sendMessage(chatId, `No se encontró el correo ${email} en la base de datos.`);
     }
   } catch (error) {
-    console.error(Error revoking access for email ${email}:, error);
-    await bot.sendMessage(chatId, Ocurrió un error al revocar el acceso para ${email}.);
+    console.error(`Error revoking access for email ${email}:`, error);
+    await bot.sendMessage(chatId, `Ocurrió un error al revocar el acceso para ${email}.`);
   }
 };
 
-// Manejador de mensajes del bot
 const WelcomeUser = () => {
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
@@ -302,7 +299,7 @@ const WelcomeUser = () => {
         await verifyAndSaveEmail(chatId, text, bot);
         userState[chatId].awaitingEmail = false;
       } catch (error) {
-        console.error(Error verifying email for ${chatId}:, error);
+        console.error(`Error verifying email for ${chatId}:`, error);
         userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
       }
       return;
@@ -331,7 +328,6 @@ const WelcomeUser = () => {
   });
 };
 
-// Manejador de botones
 const handleCallbackQuery = async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -344,24 +340,22 @@ const handleCallbackQuery = async (query) => {
 
 bot.on('callback_query', handleCallbackQuery);
 
-// Funciones para desbanear y expulsar usuarios
 const UnbanChatMember = (userId) => {
   bot.unbanChatMember(channel.id, userId)
     .then(() => {
-      console.log(User unbanned from the channel ${channel.name});
+      console.log(`User unbanned from the channel ${channel.name}`);
     })
-    .catch(err => console.log(Error to unban user ${err}));
+    .catch(err => console.log(`Error to unban user ${err}`));
 };
 
 const KickChatMember = (userId) => {
   bot.banChatMember(channel.id, userId)
     .then(() => {
-      console.log(User kicked from the channel ${channel.name});
+      console.log(`User kicked from the channel ${channel.name}`);
     })
-    .catch(err => console.log(Error to kick user ${err}));
+    .catch(err => console.log(`Error to kick user ${err}`));
 };
 
-// Inicializar los manejadores
 if (!global.botInitialized) {
   global.botInitialized = true;
   WelcomeUser();
