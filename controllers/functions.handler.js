@@ -227,6 +227,12 @@ const revokeAccess = async (chatId, email) => {
         // Expulsar al usuario del canal de Telegram
         await bot.banChatMember(channel.id, userId);
         console.log(`Usuario ${userId} expulsado del canal.`);
+        // Desbanear el usuario para permitir que se una nuevamente si es necesario
+        await bot.unbanChatMember(channel.id, userId);
+      } else {
+        console.log(`No se encontró userId para el email ${email}`);
+        await bot.sendMessage(chatId, `No se encontró el usuario asociado con el correo ${email}.`);
+        return;
       }
 
       // Eliminar el correo de la base de datos
