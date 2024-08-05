@@ -285,13 +285,7 @@ const WelcomeUser = () => {
       return;
     }
 
-    if (userState[chatId].emailSubscriptions && (inactivityTime < maxInactivityTime)) {
-      if (!userState[chatId].awaitingEmail) {
-        userState[chatId].awaitingEmail = true;
-        await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
-        return;
-      }
-
+    if (userState[chatId].awaitingEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(text)) {
         await bot.sendMessage(chatId, 'Solo puedo recibir correos electrónicos. Por favor, envía un correo electrónico válido.');
@@ -303,11 +297,12 @@ const WelcomeUser = () => {
         userState[chatId].awaitingEmail = false;
       } catch (error) {
         console.error(`Error verifying email for ${chatId}:`, error);
+        userState[chatId].awaitingEmail = false; // Reset awaiting email state in case of error
       }
       return;
     }
 
-    if (!userState[chatId].fetchingStatus) {
+    if (!userState[chatId].emailSubscriptions) {
       userState[chatId].fetchingStatus = true;
       await bot.sendMessage(chatId, 'Obteniendo correos con membresía "Carbon", por favor espera. Podría tardar al menos un minuto.');
 
@@ -324,7 +319,8 @@ const WelcomeUser = () => {
         await bot.sendMessage(chatId, 'Ocurrió un error al obtener los correos con membresía "Carbon". Vuelve a intentar escribiéndome.');
       }
     } else {
-      await bot.sendMessage(chatId, 'Ya se han obtenido los correos con membresía "Carbon". Escribe el correo con el que compraste en Sharpods.');
+      userState[chatId].awaitingEmail = true;
+      await bot.sendMessage(chatId, 'Escribe el correo con el que compraste en Sharpods.');
     }
   });
 };
@@ -360,8 +356,11 @@ const KickChatMember = (userId) => {
 };
 
 // Inicializar los manejadores
-WelcomeUser();
-handleChatMember(bot);
+if (!global.botInitialized) {
+  global.botInitialized = true;
+  WelcomeUser();
+  handleChatMember(bot);
+}
 
 module.exports = {
   WelcomeUser,
